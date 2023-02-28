@@ -34,19 +34,19 @@ test_bitstream()
    auto abad1dea_bits = to_bitvec(abad1dea_vec);
 
    ASSERT_SUCCESS(stream.push_bits(abad1dea_bits));
-   ASSERT(*reinterpret_cast<std::uint32_t *>(stream.data()) == 0xADAB1DC0);
-   ASSERT(*reinterpret_cast<std::uint16_t *>(stream.data()+4) == 0xEA1D);
+   ASSERT(*reinterpret_cast<const std::uint32_t *>(stream.data()) == 0xADAB1DC0);
+   ASSERT(*reinterpret_cast<const std::uint16_t *>(stream.data()+4) == 0xEA1D);
 
    auto beef = "\xbe\xef";
    auto beef_vec = ByteVec(beef, beef+std::strlen(beef));
    auto beef_bits = to_bitvec(beef_vec);
 
    ASSERT_SUCCESS(stream.insert_bits(20, beef_bits));
-   ASSERT(*reinterpret_cast<std::uint64_t *>(stream.data()) == 0xEA1DADAEFBEB1DC0);
+   ASSERT(*reinterpret_cast<const std::uint64_t *>(stream.data()) == 0xEA1DADAEFBEB1DC0);
    
    ASSERT_SUCCESS(stream.erase_bits(20, beef_bits.size()));
-   ASSERT(*reinterpret_cast<std::uint32_t *>(stream.data()) == 0xADAB1DC0);
-   ASSERT(*reinterpret_cast<std::uint16_t *>(stream.data()+4) == 0xEA1D);
+   ASSERT(*reinterpret_cast<const std::uint32_t *>(stream.data()) == 0xADAB1DC0);
+   ASSERT(*reinterpret_cast<const std::uint16_t *>(stream.data()+4) == 0xEA1D);
 
    COMPLETE();
 }
@@ -87,14 +87,31 @@ test_inflate()
    auto init_entropy = entropy(random_bytes.data(), random_bytes.size());
    LOG_INFO("Entropy (deflated): " << init_entropy);
 
-   auto inflated = inflate::inflate(random_bytes.data(), random_bytes.size());
+   auto inflated = inflate_disk(random_bytes.data(), random_bytes.size());
    auto inflate_entropy = entropy(inflated.data(), inflated.size());
    ASSERT(inflate_entropy < init_entropy);
-   LOG_INFO("Entropy (inflated): " << inflate_entropy);
+   LOG_INFO("Entropy (inflated, non-RNG): " << inflate_entropy);
 
-   auto deflated = inflate::deflate(inflated.data(), inflated.size());
+   ByteVec deflated;
+   ASSERT_SUCCESS(deflated = deflate_disk(inflated.data(), inflated.size()));
+   ASSERT(deflated == random_bytes);
+
+   inflated = inflate_disk(random_bytes.data(), random_bytes.size(), InflateLevel::INFLATE_RNG_PARTIAL_3BIT);
+   inflate_entropy = entropy(inflated.data(), inflated.size());
+   ASSERT(inflate_entropy < init_entropy);
+   LOG_INFO("Entropy (inflated, RNG, partial): " << inflate_entropy);
+
+   ASSERT_SUCCESS(deflated = deflate_disk(inflated.data(), inflated.size()));
    ASSERT(deflated == random_bytes);
    
+   inflated = inflate_disk(random_bytes.data(), random_bytes.size(), InflateLevel::INFLATE_RNG_FULL_3BIT);
+   inflate_entropy = entropy(inflated.data(), inflated.size());
+   ASSERT(inflate_entropy < init_entropy);
+   LOG_INFO("Entropy (inflated, RNG, full): " << inflate_entropy);
+
+   ASSERT_SUCCESS(deflated = deflate_disk(inflated.data(), inflated.size()));
+   ASSERT(deflated == random_bytes);
+
    COMPLETE();
 }
 

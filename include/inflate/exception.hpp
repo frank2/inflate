@@ -33,10 +33,10 @@ namespace exception
    class OutOfBounds : public Exception
    {
    public:
-      std::size_t given;
-      std::size_t boundary;
+      std::uint64_t given;
+      std::uint64_t boundary;
 
-      OutOfBounds(std::size_t given, std::size_t boundary) : given(given), boundary(boundary), Exception() {
+      OutOfBounds(std::uint64_t given, std::uint64_t boundary) : given(given), boundary(boundary), Exception() {
          std::stringstream stream;
 
          stream << "Out of bounds: the given boundary was " << given
@@ -56,10 +56,10 @@ namespace exception
    class InsufficientSize : public Exception
    {
    public:
-      std::size_t given;
-      std::size_t needed;
+      std::uint64_t given;
+      std::uint64_t needed;
 
-      InsufficientSize(std::size_t given, std::size_t needed) : given(given), needed(needed), Exception() {
+      InsufficientSize(std::uint64_t given, std::uint64_t needed) : given(given), needed(needed), Exception() {
          std::stringstream stream;
 
          stream << "Insufficient size: was given a size of " << given
@@ -104,6 +104,12 @@ namespace exception
 
          this->error = stream.str();
       }
+   };
+
+   class ConstConflict : public Exception
+   {
+   public:
+      ConstConflict() : Exception("Const conflict: a non-const operation was performed when the backing data was initialized const.") {}
    };
 }}
 

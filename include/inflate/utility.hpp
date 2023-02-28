@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <inflate/platform.hpp>
@@ -79,5 +80,35 @@ namespace inflate
 
    EXPORT std::uint32_t crc32(const void *ptr, std::size_t size, std::uint32_t init_crc=0);
    EXPORT std::uint32_t crc32(const std::vector<std::uint8_t> &vec, std::uint32_t init_crc=0);
+
+   class ShiftRegister
+   {
+      std::uint32_t _reg;
+      std::uint32_t _seed;
+
+   public:
+      ShiftRegister(std::optional<std::uint32_t> seed=std::nullopt) {
+         if (seed.has_value())
+            this->_seed = *seed;
+         else
+            this->_seed = 0xACE1;
+
+         this->_reg = this->_seed;
+      }
+      ShiftRegister(const ShiftRegister &other) : _seed(other._seed), _reg(other._reg) {}
+
+      std::uint32_t operator*() { return this->shift(); }
+
+      std::uint32_t shift() {
+         auto lsb = this->_reg & 1;
+         this->_reg >>= 1;
+
+         if (lsb) { this->_reg ^= (1 << 31) | (1 << 29) | (1 << 25) | (1 << 24); }
+
+         return this->_reg;
+      }
+      void reset() { this->_reg = this->_seed; }
+      void reseed(std::uint32_t seed) { this->_seed = seed; }
+   };
 }
 #endif

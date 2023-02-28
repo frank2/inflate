@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstddef>
+#include <cstring>
 #include <vector>
+#include <iostream>
 
 #include <inflate/platform.hpp>
 #include <inflate/exception.hpp>
@@ -16,22 +18,30 @@ namespace inflate
 
    EXPORT BitVec to_bitvec(const ByteVec &byte_vec);
    EXPORT ByteVec to_bytevec(const BitVec &bit_vec);
+
+   class BitstreamVec;
    
    EXPORT
    class BitstreamPtr
    {
    protected:
-      std::uint8_t *_data;
-      std::size_t _size;
+      union {
+         std::uint8_t *m;
+         const std::uint8_t *c;
+      } _data;
+      
+      std::uint64_t _size;
+
+      bool _const;
 
    public:
       class reference {
          friend BitstreamPtr;
          
          BitstreamPtr *_stream;
-         std::size_t _index;
+         std::uint64_t _index;
 
-         reference(BitstreamPtr *stream, std::size_t index) : _stream(stream), _index(index) {}
+         reference(BitstreamPtr *stream, std::uint64_t index) : _stream(stream), _index(index) {}
 
       public:
          reference() : _stream(nullptr), _index(0) {}
@@ -59,16 +69,16 @@ namespace inflate
          reference operator--(int) { auto tmp = *this; --(*this); return tmp; }
 
          bool is_null() const { return this->_stream == nullptr; }
-         std::size_t index() const { return this->_index; }
+         std::uint64_t index() const { return this->_index; }
       };
 
       class iterator {
          friend BitstreamPtr;
          
          BitstreamPtr *_stream;
-         std::size_t _index;
+         std::uint64_t _index;
 
-         iterator(BitstreamPtr *stream, std::size_t index) : _stream(stream), _index(index) {}
+         iterator(BitstreamPtr *stream, std::uint64_t index) : _stream(stream), _index(index) {}
          
       public:
          using iterator_category = std::forward_iterator_tag;
@@ -82,9 +92,13 @@ namespace inflate
 
          iterator &operator=(const iterator &other) { this->_stream = other._stream; this->_index = other._index; }
          bool operator==(const iterator &other) const { return this->_stream == other._stream && this->_index == other._index; }
+         bool operator!=(const iterator &other) const { return !(*this == other); }
 
          iterator &operator++() { this->_index++; return *this; }
          iterator operator++(int) { auto tmp = *this; ++(*this); return tmp; }
+
+         iterator &operator--() { this->_index--; return *this; }
+         iterator operator--(int) { auto tmp = *this; --(*this); return tmp; }
 
          reference operator*() {
             if (this->_stream == nullptr)
@@ -104,9 +118,9 @@ namespace inflate
          friend BitstreamPtr;
          
          const BitstreamPtr *_stream;
-         std::size_t _index;
+         std::uint64_t _index;
 
-         const_iterator(const BitstreamPtr *stream, std::size_t index) : _stream(stream), _index(index) {}
+         const_iterator(const BitstreamPtr *stream, std::uint64_t index) : _stream(stream), _index(index) {}
          
       public:
          using iterator_category = std::forward_iterator_tag;
@@ -120,9 +134,13 @@ namespace inflate
 
          const_iterator &operator=(const const_iterator &other) { this->_stream = other._stream; this->_index = other._index; }
          bool operator==(const const_iterator &other) const { return this->_stream == other._stream && this->_index == other._index; }
-
+         bool operator!=(const const_iterator &other) const { return !(*this == other); }
+         
          const_iterator &operator++() { this->_index++; return *this; }
          const_iterator operator++(int) { auto tmp = *this; ++(*this); return tmp; }
+         
+         const_iterator &operator--() { this->_index--; return *this; }
+         const_iterator operator--(int) { auto tmp = *this; --(*this); return tmp; }
 
          const reference operator*() const {
             if (this->_stream == nullptr)
@@ -132,12 +150,18 @@ namespace inflate
          }
       };
 
-      BitstreamPtr() : _data(nullptr), _size(0) {}
-      BitstreamPtr(std::uint8_t *data, std::size_t size) : _data(data), _size(size) {}
-      BitstreamPtr(const BitstreamPtr &other) : _data(other._data), _size(other._size) {}
+      BitstreamPtr() : _size(0), _const(false) { this->_data.m = nullptr; }
+      BitstreamPtr(std::uint8_t *data, std::uint64_t size) : _size(size), _const(false) { this->_data.m = data; }
+      BitstreamPtr(const std::uint8_t *data, std::uint64_t size) : _size(size), _const(true) { this->_data.c = data; }
+      BitstreamPtr(const BitstreamPtr &other) : _data(other._data), _size(other._size), _const(other._const) {}
 
-      reference operator[](std::size_t index);
-      bool operator[](std::size_t index) const;
+      BitstreamPtr &operator=(const BitstreamPtr &other);
+      reference operator[](std::uint64_t index);
+      bool operator[](std::uint64_t index) const;
+      bool operator==(const BitstreamPtr &other) const;
+      bool operator!=(const BitstreamPtr &other) const { return !(*this == other); }
+      bool operator==(const BitVec &other) const;
+      bool operator!=(const BitVec &other) const { return !(*this == other); }
 
       iterator begin() { return iterator(this, 0); }
       iterator end() { return iterator(this, this->_size); }
@@ -145,25 +169,26 @@ namespace inflate
       const_iterator cbegin() const { return const_iterator(this, 0); }
       const_iterator cend() const { return const_iterator(this, this->_size); }
 
-      bool get_bit(std::size_t index) const;
-      void set_bit(std::size_t index, bool bit);
+      bool get_bit(std::uint64_t index) const;
+      void set_bit(std::uint64_t index, bool bit);
 
-      std::uint8_t &get_byte(std::size_t index) const;
-      void set_byte(std::size_t index, std::uint8_t byte);
+      std::uint8_t get_byte(std::uint64_t index) const;
+      void set_byte(std::uint64_t index, std::uint8_t byte);
 
-      std::size_t bit_size() const;
-      std::size_t byte_size() const;
+      std::uint64_t bit_size() const;
+      std::uint64_t byte_size() const;
 
-      std::uint8_t *data();
       const std::uint8_t *data() const;
-      void set_data(std::uint8_t *data, std::size_t size);
+      void set_data(std::uint8_t *data, std::uint64_t size);
+      void set_data(const std::uint8_t *data, std::uint64_t size);
 
-      BitVec read_bits(std::size_t index, std::size_t size) const;
-      void write_bits(std::size_t index, const BitVec &bits);
-      void write_bits(std::size_t index, const BitstreamPtr &bits);
+      BitstreamVec read_bits(std::uint64_t index, std::uint64_t size) const;
+      void write_bits(std::uint64_t index, const BitVec &bits);
+      void write_bits(std::uint64_t index, const BitstreamPtr &bits);
 
       BitVec to_bitvec() const;
       ByteVec to_bytevec() const;
+      BitstreamVec to_vec() const;
    };
 
    EXPORT
@@ -173,29 +198,35 @@ namespace inflate
       ByteVec _vec;
       
    public:
-      BitstreamVec() : _vec(ByteVec()), BitstreamPtr() { this->set_data(this->_vec.data(), this->_vec.size()); }
-      BitstreamVec(const std::uint8_t *data, std::size_t size)
-         : _vec(data, data+(size/8+static_cast<std::size_t>(size%8!=0))),
+      BitstreamVec() : _vec(ByteVec()), BitstreamPtr() { this->set_data(this->_vec.data(), this->_vec.size()*8); }
+      BitstreamVec(std::uint64_t size) : BitstreamPtr() {
+         this->_vec = ByteVec(size/8 + static_cast<std::uint64_t>(size % 8 != 0), 0);
+         this->set_data(this->_vec.data(), size);
+      }
+      BitstreamVec(const std::uint8_t *data, std::uint64_t size)
+         : _vec(data, data+(size/8+static_cast<std::uint64_t>(size%8!=0))),
            BitstreamPtr()
       {
          this->set_data(this->_vec.data(), size);
       }
-      BitstreamVec(const ByteVec &vec, std::size_t size) : _vec(vec), BitstreamPtr() { this->set_data(this->_vec.data(), size); }
-      BitstreamVec(const BitstreamVec &other) : _vec(other._vec), BitstreamPtr(other) {}
+      BitstreamVec(const ByteVec &vec, std::uint64_t size) : _vec(vec), BitstreamPtr() { this->set_data(this->_vec.data(), size); }
+      BitstreamVec(const BitstreamVec &other) : _vec(other._vec), BitstreamPtr(other) { this->set_data(this->_vec.data(), this->_size); }
 
-      void resize(std::size_t bits);
+      BitstreamVec &operator=(const BitstreamVec &other);
+
+      void resize(std::uint64_t bits);
 
       void push_bit(bool bit);
       void push_bits(const BitVec &bits);
 
       bool pop_bit();
-      BitVec pop_bits(std::size_t bits);
+      BitstreamVec pop_bits(std::uint64_t bits);
 
-      void insert_bit(std::size_t index, bool bit);
-      void insert_bits(std::size_t index, const BitVec &bits);
+      void insert_bit(std::uint64_t index, bool bit);
+      void insert_bits(std::uint64_t index, const BitVec &bits);
 
-      void erase_bit(std::size_t index);
-      void erase_bits(std::size_t index, std::size_t size);
+      void erase_bit(std::uint64_t index);
+      void erase_bits(std::uint64_t index, std::uint64_t size);
    };
 }
 
