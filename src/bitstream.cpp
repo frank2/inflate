@@ -110,6 +110,10 @@ void BitstreamPtr::set_bit(std::uint64_t index, bool bit) {
    this->_data.m[byte_offset] = (this->_data.m[byte_offset] & bit_mask) | (static_cast<std::uint8_t>(bit) << bit_offset);
 }
 
+void BitstreamPtr::flip_bit(std::uint64_t index) {
+   this->set_bit(index, !this->get_bit(index));
+}
+
 std::uint8_t BitstreamPtr::get_byte(std::uint64_t index) const {
    if (this->_data.c == nullptr)
       throw exception::NullPointer();

@@ -171,6 +171,7 @@ namespace inflate
 
       bool get_bit(std::uint64_t index) const;
       void set_bit(std::uint64_t index, bool bit);
+      void flip_bit(std::uint64_t index);
 
       std::uint8_t get_byte(std::uint64_t index) const;
       void set_byte(std::uint64_t index, std::uint8_t byte);
