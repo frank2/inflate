@@ -83,6 +83,7 @@ namespace inflate
 
    class ShiftRegister
    {
+   protected:
       std::uint32_t _reg;
       std::uint32_t _seed;
 
@@ -96,10 +97,15 @@ namespace inflate
          this->_reg = this->_seed;
       }
       ShiftRegister(const ShiftRegister &other) : _seed(other._seed), _reg(other._reg) {}
-
+      
+      ShiftRegister &operator=(const ShiftRegister &other) {
+         this->_reg = other._reg;
+         this->_seed = other._seed;
+         return *this;
+      }
       std::uint32_t operator*() { return this->shift(); }
 
-      std::uint32_t shift() {
+      virtual std::uint32_t shift() {
          auto lsb = this->_reg & 1;
          this->_reg >>= 1;
 
